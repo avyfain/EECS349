@@ -10,7 +10,7 @@ CONSUMER_KEY = "23417-b55bf5445152c892b4dbbe22"
 
 TOKENS = {
     #"leon":"204ab5b2-4e64-015c-453e-65268e",
-    "avy": "0d3c6a1d-c3ea-2f05-53cb-d23ea8"
+    "avy": "d9b284c1-d6d0-850b-5ee2-94ebb0"
 }
 
 def get_request_token():
@@ -45,6 +45,15 @@ def authorize():
     print "Go to the following URL to authorize pocket:"
     print url
 
+def convert_access_tok_to_request(tok):
+    endpoint = 'v3/oauth/authorize'
+    data = {
+        "consumer_key":CONSUMER_KEY,
+        "code": tok
+    }
+    req = make_request(endpoint,data, type="POST")
+    print req.text
+
 def get_all_articles(access_token):
     data = {
         "access_token":access_token,
@@ -58,8 +67,8 @@ def get_all_articles(access_token):
     return json.loads(req.text)
 
 def list_to_csv():
-    filename = "leon_all_pocket.json"
-    op = open("leon_pocket.csv","w")
+    filename = "avy_all_pocket.json"
+    op = open("avy_pocket.csv","w")
     with open(filename) as f:
         data = json.loads(f.read())
         article_list = data["list"]
@@ -74,10 +83,11 @@ def list_to_csv():
 
 if __name__ == "__main__":
     #authorize()
+    #convert_access_tok_to_request("0d3c6a1d-c3ea-2f05-53cb-d23ea8")
     
     for n,t in TOKENS.iteritems():
         data = get_all_articles(t)
         json.dump(data,open("{0}_all_pocket.json".format(n),"w"))
 
-    
-    #list_to_csv()
+
+    list_to_csv()
