@@ -81,13 +81,42 @@ def list_to_csv():
 
     op.close()
 
+def unique_list_from_csv():
+    filenames = ["avy_all_pocket.json", "leon_all_pocket.json"]
+    arts = []
+    for fname in filenames:
+        data = json.loads(open(fname).read())
+        a=data["list"].items()
+        arts += data["list"].items()
+    
+    added_ids = []
+    uniques = []
+    for item_id, a in arts:
+        if a["resolved_id"] not in added_ids:
+            uniques.append(a)
+            added_ids.append(a["resolved_id"])
+
+    op = open("unique_pocket.csv","w")
+
+    headers = ['item_id','resolved_id','given_url']
+    writer = csv.DictWriter(op,fieldnames=headers, extrasaction='ignore')
+        
+    #each article is a dict "id":data
+    for art in uniques:
+        writer.writerow(art)
+    
+    op.close()
+
+
 if __name__ == "__main__":
     #authorize()
     #convert_access_tok_to_request("0d3c6a1d-c3ea-2f05-53cb-d23ea8")
-    
+    '''
     for n,t in TOKENS.iteritems():
         data = get_all_articles(t)
         json.dump(data,open("{0}_all_pocket.json".format(n),"w"))
 
 
     list_to_csv()
+    '''
+    unique_list_from_csv()
