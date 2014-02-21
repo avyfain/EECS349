@@ -1,5 +1,5 @@
 import json, csv, requests
-
+from pymongo import MongoClient
 
 """
    First run authorize() to get a url and browse to that to authorize app
@@ -60,7 +60,7 @@ def get_all_articles(access_token):
         "state": "all",
         "consumer_key":CONSUMER_KEY
     }
-    
+
     endpoint = "v3/get"
     req = make_request(endpoint,data, type="POST")
     print req.text, req.url, data
@@ -74,7 +74,7 @@ def list_to_csv():
         article_list = data["list"]
         headers = ['item_id','resolved_id','given_url']
         writer = csv.DictWriter(op,fieldnames=headers, extrasaction='ignore')
-        
+
         #each article is a dict "id":data
         for art in article_list.values():
             writer.writerow(art)
@@ -88,7 +88,7 @@ def unique_list_from_csv():
         data = json.loads(open(fname).read())
         a=data["list"].items()
         arts += data["list"].items()
-    
+
     added_ids = []
     uniques = []
     for item_id, a in arts:
@@ -100,12 +100,29 @@ def unique_list_from_csv():
 
     headers = ['item_id','resolved_id','given_url']
     writer = csv.DictWriter(op,fieldnames=headers, extrasaction='ignore')
-        
+
     #each article is a dict "id":data
     for art in uniques:
         writer.writerow(art)
-    
+
     op.close()
+
+
+def save_to_mongo():
+    client = MongoClient('mongodb://localhost:27017/')
+    db = client.phoenix
+    Articles = db.articles
+    Users = db.users
+    files = ["avy_all_pocket.json", "leon_all_pocket.json"]
+    users = ["avyfain", "leonsas"]
+    for u in users:
+        Users.insert({'_id':u,"username":u})
+    for fname, username in zip(files,users):
+        data = json.load(open("data/"+fname))
+        article_list = [a for a in data['list'].values()]
+        for a in article_list:
+            art_id = Articles.insert(a)
+            db.users.update({'_id':username},{'$push':{'articles_ids': art_id}})
 
 
 if __name__ == "__main__":
@@ -119,4 +136,5 @@ if __name__ == "__main__":
 
     list_to_csv()
     '''
-    unique_list_from_csv()
+    #unique_list_from_csv()
+    save_to_mongo()
