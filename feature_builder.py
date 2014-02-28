@@ -1,7 +1,10 @@
 from collections import Counter
+import collections
 from extractor import clean_text
 from nltk import word_tokenize
 import numpy as np
+from scipy.sparse import lil_matrix
+
 class Featurizer(object):
     def __init__(self, story):
         self.story = story
@@ -9,7 +12,7 @@ class Featurizer(object):
 
     def extract_features(self):
         self.extract_title_features()
-        #self.extract_text_features()
+        self.extract_text_features()
 
         return self.features
 
@@ -69,22 +72,64 @@ def all_features(feature_list):
         length += len(features.keys())
         keys = set(features.keys())
         all_keys.update(keys)
-    print "## Non deduped length: %s, Deduped length: %s", (length, len(all_keys))
+    print "## Non deduped length: %s, Deduped length: %s" % (length, len(all_keys))
 
     return all_keys
 
 def build_matrix(feature_list,all_keys):
-    matrix = []
-    for features in feature_list:
-        current_row = np.array([0] * len(all_keys))
+    num_rows, num_cols = len(feature_list), len(all_keys)
+    matrix = lil_matrix((num_rows,num_cols),dtype=int)
+    for row, features in enumerate(feature_list):
         for feature_key, feature_count in features.iteritems():
-            index = all_keys.index(feature_key)
-            current_row[index] = feature_count
-        matrix.append(current_row)
+            col_index = all_keys.index(feature_key)
 
     from pympler.asizeof import asizeof
     print "Size of matrix", asizeof(matrix)
-    print "rows: %s, cols: %s" % (len(matrix), len(matrix[0]))
+    print "Shape: ", matrix.shape
+    return matrix
+
+def scikit_models(articles):
+    feature_list = []
+    c = 0
+    targets = []
+    for art in arts_with_content:
+        c+=1
+        try:
+            features = Featurizer(art).extract_features()
+            targets.append(art["favorite"])
+            feature_list.append(features)
+        except Exception as e:
+            print e
+
+        if c > 2000:
+            break
+
+
+    #all_features_keys = list(all_features(feature_list))
+    #matrix = build_matrix(feature_list,all_features_keys)
+    print len(targets), matrix.shape
+    #from sklearn.naive_bayes import GaussianNB
+    #gnb = GaussianNB()
+    #y_pred = gnb.fit(matrix.toarray(), targets)
+
+
+def nb(articles):
+    #frequency table, initialize all to 1
+    #keys will be tuples (feature_key, target_class), values will be frequency+1
+    feature_counts = collections.defaultdict(lambda: 1)
+    class_counts = collections.defaultdict(lambda: 0)
+    for article in articles:
+        try:
+            features = Featurizer(article).extract_features()
+        except:
+            #Some error extracting article, so skip it.
+            continue
+        target_class = article["favorite"]
+        class_counts[target_class] +=1
+
+        for feature, count in features.iteritems():
+            feature_counts[(feature, target_class)] += 1
+
 
 if __name__ == "__main__":
     from pymongo import MongoClient
@@ -93,19 +138,9 @@ if __name__ == "__main__":
     Articles = db.articles
     arts_with_content = Articles.find({'extracted_raw_content':{'$exists':True}})
     print "Number of articles with raw content (before featurizing):", arts_with_content.count()
-    feature_list = []
-    c = 0
-    for art in arts_with_content:
-        c+=1
-        try:
-            features = Featurizer(art).extract_features()
-            feature_list.append(features)
-        except Exception as e:
-            print e
+    #scikit_model(arts_with_content)
+    nb(arts_with_content)
 
-
-    all_features_keys = list(all_features(feature_list))
-    build_matrix(feature_list,all_features_keys)
 
 
 
