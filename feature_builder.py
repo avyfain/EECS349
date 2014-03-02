@@ -125,29 +125,34 @@ class NaiveBayes():
         #keys will be tuples (feature_key, target_class), values will be frequency+1
         self.feature_counts = collections.defaultdict(lambda: 1)
         self.class_counts = collections.defaultdict(lambda: 0)
-        for article in articles:
+        for article in self.articles:
             try:
                 features = Featurizer(article).extract_features()
                 for f in features: 
-                    self.feature_names.insert(f)
-            except:
+                    self.feature_names.add(f)
+                target_class = article["favorite"]
+                self.class_counts[target_class] +=1
+                print target_class, self.class_counts
+            except Exception as e:
                 #Some error extracting article, so skip it.
+                print e
                 continue
-            target_class = article["favorite"]
-            self.class_counts[target_class] +=1
+
+            
 
             for feature, count in features.iteritems():
                 self.feature_counts[(feature, target_class)] += 1
-        self.feature_set_length = len(feature_names)
+        self.feature_set_length = len(self.feature_names)
+        print self.class_counts
 
     def classify(self, article):
         article_features = Featurizer(article).extract_features()
 
         #MAP Estimate per feature (number of favorites with feature + 1)/(number of favorites + featureset length)
         p_article = {}
-        for target_class in [0,1]
+        for target_class in ['0','1']:
             probs = {}
-            prior = self.class_counts[target_class]/(self.class_counts[1]+self.class_counts[0])
+            prior = self.class_counts[target_class]/(self.class_counts['1']+self.class_counts['0'])
             for feature in article_features:
                 if feature in self.feature_names:
                     numerator = self.feature_counts[(feature, target_class)]
@@ -164,12 +169,9 @@ if __name__ == "__main__":
     client = MongoClient('mongodb://localhost:27017/')
     db = client.phoenix
     Articles = db.articles
-    arts_with_content = Articles.find({'extracted_raw_content':{'$exists':True}})
+    arts_with_content = Articles.find({'extracted_raw_content':{'$exists':True}}).limit(50)
     print "Number of articles with raw content (before featurizing):", arts_with_content.count()
     #scikit_model(arts_with_content)
     foo = NaiveBayes(arts_with_content)
-    foo.classify
-
-
-
-
+    bar = foo.classify(Articles.find_one({'extracted_raw_content':{'$exists':True}}))
+    print bar
