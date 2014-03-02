@@ -4,6 +4,7 @@ from extractor import clean_text
 from nltk import word_tokenize
 import numpy as np
 from scipy.sparse import lil_matrix
+import math
 
 class Featurizer(object):
     def __init__(self, story):
@@ -113,23 +114,50 @@ def scikit_models(articles):
     #y_pred = gnb.fit(matrix.toarray(), targets)
 
 
-def nb(articles):
-    #frequency table, initialize all to 1
-    #keys will be tuples (feature_key, target_class), values will be frequency+1
-    feature_counts = collections.defaultdict(lambda: 1)
-    class_counts = collections.defaultdict(lambda: 0)
-    for article in articles:
-        try:
-            features = Featurizer(article).extract_features()
-        except:
-            #Some error extracting article, so skip it.
-            continue
-        target_class = article["favorite"]
-        class_counts[target_class] +=1
+class NaiveBayes():
+    def __init__(self, articles):
+        self.articles = articles
+        self.nb()
 
-        for feature, count in features.iteritems():
-            feature_counts[(feature, target_class)] += 1
+    def nb(self):
+        self.feature_names = set([])
+        #frequency table, initialize all to 1
+        #keys will be tuples (feature_key, target_class), values will be frequency+1
+        self.feature_counts = collections.defaultdict(lambda: 1)
+        self.class_counts = collections.defaultdict(lambda: 0)
+        for article in articles:
+            try:
+                features = Featurizer(article).extract_features()
+                for f in features: 
+                    self.feature_names.insert(f)
+            except:
+                #Some error extracting article, so skip it.
+                continue
+            target_class = article["favorite"]
+            self.class_counts[target_class] +=1
 
+            for feature, count in features.iteritems():
+                self.feature_counts[(feature, target_class)] += 1
+        self.feature_set_length = len(feature_names)
+
+    def classify(self, article):
+        article_features = Featurizer(article).extract_features()
+
+        #MAP Estimate per feature (number of favorites with feature + 1)/(number of favorites + featureset length)
+        p_article = {}
+        for target_class in [0,1]
+            probs = {}
+            prior = self.class_counts[target_class]/(self.class_counts[1]+self.class_counts[0])
+            for feature in article_features:
+                if feature in self.feature_names:
+                    numerator = self.feature_counts[(feature, target_class)]
+                    denominator = (self.class_counts[target_class]+self.feature_set_length)            
+                    probs[feature] = numerator/denominator
+            tot = 0
+            for p in probs.values():
+                tot += math.log(p)
+            p_article[target_class] = math.log(prior) + tot
+        return max(p_article, key=operator.itemgetter(1))
 
 if __name__ == "__main__":
     from pymongo import MongoClient
@@ -139,7 +167,8 @@ if __name__ == "__main__":
     arts_with_content = Articles.find({'extracted_raw_content':{'$exists':True}})
     print "Number of articles with raw content (before featurizing):", arts_with_content.count()
     #scikit_model(arts_with_content)
-    nb(arts_with_content)
+    foo = NaiveBayes(arts_with_content)
+    foo.classify
 
 
 
