@@ -5,7 +5,8 @@ from nltk import word_tokenize
 import numpy as np
 from scipy.sparse import lil_matrix
 import math
-import operator, traceback
+import operator
+import logging
 
 class Featurizer(object):
     def __init__(self, story):
@@ -114,12 +115,13 @@ class NaiveBayes():
         self.articles = articles
         self.nb()
 
-    def nb(self, offline=False):
+    def nb(self, offline=True):
         self.feature_names = set([])
         #frequency table, initialize all to 1
         #keys will be tuples (feature_key, target_class), values will be frequency+1
         self.feature_counts = collections.defaultdict(lambda: 1)
         self.class_counts = collections.defaultdict(lambda: 1)
+        logging.info("Article count %s" % len(self.articles))
         for article in self.articles:
             try:
                 features = Featurizer(article).extract_features()
@@ -127,10 +129,10 @@ class NaiveBayes():
                     self.feature_names.add(f)
                 target_class = article["favorite"]
                 self.class_counts[target_class] += 1
+                # print target_class, self.class_counts
             except Exception as e:
                 #Some error extracting article, so skip it.
-                print "Exception:", e
-                #traceback.print_exc()
+                print "Exception:",e
                 continue
 
             for feature, count in features.iteritems():
@@ -166,8 +168,11 @@ class NaiveBayes():
             prior = self.class_counts[target_class] / all_class_counts
             p_article[target_class] = math.log(prior) + multiplication_total
 
-        estimated_class = max(p_article.iteritems(), key=operator.itemgetter(1))[0]
+        estimated_class = min(p_article.iteritems(), key=operator.itemgetter(1))[0]
         return int(estimated_class)
+
+
+
 
     def classify(self, article):
         try:
@@ -178,20 +183,17 @@ class NaiveBayes():
         p_article = {}
         for target_class in ['0','1']:
             probs = {}
-            all_class_counts = float((self.class_counts['1'] + self.class_counts['0']))
-            prior = self.class_counts[target_class] / all_class_counts
+            prior = self.class_counts[target_class]/float((self.class_counts['1']+self.class_counts['0']))
             for feature in article_features:
                 if feature in self.feature_names:
                     numerator = self.feature_counts[(feature, target_class)]
-                    denominator = (self.class_counts[target_class] + self.feature_set_length)
-                    probs[feature] = numerator / float(denominator)
+                    denominator = (self.class_counts[target_class]+self.feature_set_length)
+                    probs[feature] = numerator/float(denominator)
             tot = 0
             for p in probs.values():
                 tot += math.log(p)
-
             p_article[target_class] = math.log(prior) + tot
-
-        estimated_class = max(p_article.iteritems(), key=operator.itemgetter(1))[0]
+            estimated_class = min(p_article.iteritems(), key=operator.itemgetter(1))[0]
         return int(estimated_class)
 
 def score(model, training_set):
@@ -202,7 +204,7 @@ def score(model, training_set):
     predicted_classes = []
 
     for article in training_set:
-        predicted_class = model.classify(article)
+        predicted_class = model.classify_offline(article)
         if predicted_class is not None:
             predicted_classes.append(predicted_class)
             real_class = int(article['favorite'])
@@ -214,7 +216,6 @@ def score(model, training_set):
                 false_neg += 1
             else:
                 true_neg += 1
-
 
     print true_pos,"true positives"
     print true_neg, "true negatives"
@@ -233,9 +234,9 @@ if __name__ == "__main__":
     client = MongoClient('mongodb://localhost:27017/')
     db = client.phoenix
     Articles = db.articles
-    training_set = Articles.find({'extracted_raw_content':{'$exists':True}}).limit(2000)
+    training_set = Articles.find({'extracted_raw_content':{'$exists':True}})#.limit(1000)
     articles_to_score = list(training_set)
-    print "Number of articles with raw content (before featurizing):", len(articles_to_score)
+    print "Number of articles with raw content (before featurizing):", training_set.count()
 
     model = NaiveBayes(articles_to_score)
     print "We have built a model"
