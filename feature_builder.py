@@ -5,6 +5,7 @@ from nltk import word_tokenize
 import numpy as np
 from scipy.sparse import lil_matrix
 import math
+import operator
 
 class Featurizer(object):
     def __init__(self, story):
@@ -62,10 +63,6 @@ class Featurizer(object):
             feature_key = "content_contains_" + k
             self.features.setdefault(feature_key, v)
 
-
-
-
-
 def all_features(feature_list):
     all_keys = set()
     length = 0
@@ -93,7 +90,7 @@ def scikit_models(articles):
     feature_list = []
     c = 0
     targets = []
-    for art in arts_with_content:
+    for art in training_set:
         c+=1
         try:
             features = Featurizer(art).extract_features()
@@ -105,14 +102,12 @@ def scikit_models(articles):
         if c > 2000:
             break
 
-
     #all_features_keys = list(all_features(feature_list))
     #matrix = build_matrix(feature_list,all_features_keys)
     print len(targets), matrix.shape
     #from sklearn.naive_bayes import GaussianNB
     #gnb = GaussianNB()
     #y_pred = gnb.fit(matrix.toarray(), targets)
-
 
 class NaiveBayes():
     def __init__(self, articles):
@@ -124,7 +119,7 @@ class NaiveBayes():
         #frequency table, initialize all to 1
         #keys will be tuples (feature_key, target_class), values will be frequency+1
         self.feature_counts = collections.defaultdict(lambda: 1)
-        self.class_counts = collections.defaultdict(lambda: 0)
+        self.class_counts = collections.defaultdict(lambda: 1)
         for article in self.articles:
             try:
                 features = Featurizer(article).extract_features()
@@ -132,18 +127,15 @@ class NaiveBayes():
                     self.feature_names.add(f)
                 target_class = article["favorite"]
                 self.class_counts[target_class] +=1
-                print target_class, self.class_counts
+                # print target_class, self.class_counts
             except Exception as e:
                 #Some error extracting article, so skip it.
-                print e
+                print "Exception:",e
                 continue
-
-            
 
             for feature, count in features.iteritems():
                 self.feature_counts[(feature, target_class)] += 1
         self.feature_set_length = len(self.feature_names)
-        print self.class_counts
 
     def classify(self, article):
         article_features = Featurizer(article).extract_features()
@@ -152,26 +144,68 @@ class NaiveBayes():
         p_article = {}
         for target_class in ['0','1']:
             probs = {}
-            prior = self.class_counts[target_class]/(self.class_counts['1']+self.class_counts['0'])
+            prior = self.class_counts[target_class]/float((self.class_counts['1']+self.class_counts['0']))
             for feature in article_features:
                 if feature in self.feature_names:
                     numerator = self.feature_counts[(feature, target_class)]
                     denominator = (self.class_counts[target_class]+self.feature_set_length)            
-                    probs[feature] = numerator/denominator
+                    probs[feature] = numerator/float(denominator)
             tot = 0
             for p in probs.values():
                 tot += math.log(p)
             p_article[target_class] = math.log(prior) + tot
-        return max(p_article, key=operator.itemgetter(1))
+            estimated_class = max(p_article.iteritems(), key=operator.itemgetter(1))[0]
+        return int(estimated_class)
+
+def score(model, training_set):
+    true_pos = 1
+    true_neg = 1
+    false_pos = 1
+    false_neg = 1
+    predicted_classes = []
+
+    for article in training_set:
+        try:
+            predicted_class = model.classify(article)
+            predicted_classes.append(predicted_class)
+            real_class = int(article['favorite'])
+            if predicted_class == 1 and real_class == 1:
+                true_pos += 1
+            elif predicted_class == 1 and real_class == 0:
+                false_pos += 1
+            elif predicted_class == 0 and real_class == 1:
+                false_neg += 1
+            else:
+                true_neg += 1
+
+        except Exception as e:
+                #Some error extracting article, so skip it.
+                print "Exception:",e
+                continue
+    
+    print true_pos,"true positives" 
+    print true_neg, "true negatives"
+    print false_pos, "false positives"
+    print false_neg,"false negatives"
+
+    precision = true_pos/float(true_pos+false_pos)
+    recall = true_pos/float(true_pos+false_neg)
+    
+    f_score = precision*recall/float(precision+recall)
+
+    return f_score
 
 if __name__ == "__main__":
     from pymongo import MongoClient
     client = MongoClient('mongodb://localhost:27017/')
     db = client.phoenix
     Articles = db.articles
-    arts_with_content = Articles.find({'extracted_raw_content':{'$exists':True}}).limit(50)
-    print "Number of articles with raw content (before featurizing):", arts_with_content.count()
-    #scikit_model(arts_with_content)
-    foo = NaiveBayes(arts_with_content)
-    bar = foo.classify(Articles.find_one({'extracted_raw_content':{'$exists':True}}))
-    print bar
+    training_set = Articles.find({'extracted_raw_content':{'$exists':True}})#.limit(500)
+    articles_to_score = list(training_set)
+    print "Number of articles with raw content (before featurizing):", training_set.count()
+
+    model = NaiveBayes(training_set)
+    print "We have built a model"
+
+    initial_score = score(model, articles_to_score)
+    print "Our model has an F-score of", initial_score
