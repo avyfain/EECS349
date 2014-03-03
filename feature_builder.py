@@ -5,7 +5,7 @@ from nltk import word_tokenize
 import numpy as np
 from scipy.sparse import lil_matrix
 import math
-import operator
+import operator, traceback
 
 class Featurizer(object):
     def __init__(self, story):
@@ -114,7 +114,7 @@ class NaiveBayes():
         self.articles = articles
         self.nb()
 
-    def nb(self):
+    def nb(self, offline=False):
         self.feature_names = set([])
         #frequency table, initialize all to 1
         #keys will be tuples (feature_key, target_class), values will be frequency+1
@@ -123,38 +123,75 @@ class NaiveBayes():
         for article in self.articles:
             try:
                 features = Featurizer(article).extract_features()
-                for f in features: 
+                for f in features:
                     self.feature_names.add(f)
                 target_class = article["favorite"]
-                self.class_counts[target_class] +=1
-                # print target_class, self.class_counts
+                self.class_counts[target_class] += 1
             except Exception as e:
                 #Some error extracting article, so skip it.
-                print "Exception:",e
+                print "Exception:", e
+                #traceback.print_exc()
                 continue
 
             for feature, count in features.iteritems():
                 self.feature_counts[(feature, target_class)] += 1
         self.feature_set_length = len(self.feature_names)
 
-    def classify(self, article):
-        article_features = Featurizer(article).extract_features()
+        if offline:
+            self.build_probabilities()
 
+    def build_probabilities(self):
+        self.probs = {}
+        for target_class in ['0','1']:
+
+            for feature in self.feature_names:
+                numerator = self.feature_counts[(feature, target_class)]
+                denominator = (self.class_counts[target_class] + self.feature_set_length)
+                self.probs[(target_class, feature)] = numerator / float(denominator)
+
+    def classify_offline(self,article):
+        try:
+            article_features = Featurizer(article).extract_features()
+        except:
+            return None
+
+        p_article = {}
+        for target_class in self.class_counts.keys():
+            multiplication_total = 0
+            for feature in article_features:
+                if feature in self.feature_names:
+                    multiplication_total += math.log(self.probs[(target_class, feature)])
+
+            all_class_counts = float(sum(self.class_counts.values()))
+            prior = self.class_counts[target_class] / all_class_counts
+            p_article[target_class] = math.log(prior) + multiplication_total
+
+        estimated_class = max(p_article.iteritems(), key=operator.itemgetter(1))[0]
+        return int(estimated_class)
+
+    def classify(self, article):
+        try:
+            article_features = Featurizer(article).extract_features()
+        except:
+            return None
         #MAP Estimate per feature (number of favorites with feature + 1)/(number of favorites + featureset length)
         p_article = {}
         for target_class in ['0','1']:
             probs = {}
-            prior = self.class_counts[target_class]/float((self.class_counts['1']+self.class_counts['0']))
+            all_class_counts = float((self.class_counts['1'] + self.class_counts['0']))
+            prior = self.class_counts[target_class] / all_class_counts
             for feature in article_features:
                 if feature in self.feature_names:
                     numerator = self.feature_counts[(feature, target_class)]
-                    denominator = (self.class_counts[target_class]+self.feature_set_length)            
-                    probs[feature] = numerator/float(denominator)
+                    denominator = (self.class_counts[target_class] + self.feature_set_length)
+                    probs[feature] = numerator / float(denominator)
             tot = 0
             for p in probs.values():
                 tot += math.log(p)
+
             p_article[target_class] = math.log(prior) + tot
-            estimated_class = max(p_article.iteritems(), key=operator.itemgetter(1))[0]
+
+        estimated_class = max(p_article.iteritems(), key=operator.itemgetter(1))[0]
         return int(estimated_class)
 
 def score(model, training_set):
@@ -165,8 +202,8 @@ def score(model, training_set):
     predicted_classes = []
 
     for article in training_set:
-        try:
-            predicted_class = model.classify(article)
+        predicted_class = model.classify(article)
+        if predicted_class is not None:
             predicted_classes.append(predicted_class)
             real_class = int(article['favorite'])
             if predicted_class == 1 and real_class == 1:
@@ -178,19 +215,15 @@ def score(model, training_set):
             else:
                 true_neg += 1
 
-        except Exception as e:
-                #Some error extracting article, so skip it.
-                print "Exception:",e
-                continue
-    
-    print true_pos,"true positives" 
+
+    print true_pos,"true positives"
     print true_neg, "true negatives"
     print false_pos, "false positives"
     print false_neg,"false negatives"
 
     precision = true_pos/float(true_pos+false_pos)
     recall = true_pos/float(true_pos+false_neg)
-    
+
     f_score = precision*recall/float(precision+recall)
 
     return f_score
@@ -200,11 +233,11 @@ if __name__ == "__main__":
     client = MongoClient('mongodb://localhost:27017/')
     db = client.phoenix
     Articles = db.articles
-    training_set = Articles.find({'extracted_raw_content':{'$exists':True}})#.limit(500)
+    training_set = Articles.find({'extracted_raw_content':{'$exists':True}}).limit(2000)
     articles_to_score = list(training_set)
-    print "Number of articles with raw content (before featurizing):", training_set.count()
+    print "Number of articles with raw content (before featurizing):", len(articles_to_score)
 
-    model = NaiveBayes(training_set)
+    model = NaiveBayes(articles_to_score)
     print "We have built a model"
 
     initial_score = score(model, articles_to_score)
