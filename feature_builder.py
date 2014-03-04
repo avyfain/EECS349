@@ -126,7 +126,7 @@ class NaiveBayes():
                 for f in features: 
                     self.feature_names.add(f)
                 target_class = article["favorite"]
-                self.class_counts[target_class] +=1
+                self.class_counts[target_class] += 1
                 # print target_class, self.class_counts
             except Exception as e:
                 #Some error extracting article, so skip it.
@@ -136,25 +136,32 @@ class NaiveBayes():
             for feature, count in features.iteritems():
                 self.feature_counts[(feature, target_class)] += 1
         self.feature_set_length = len(self.feature_names)
+        self.prior = { 
+            '0': self.class_counts['0']/float((self.class_counts['1']+self.class_counts['0'])),
+            '1': self.class_counts['1']/float((self.class_counts['1']+self.class_counts['0']))
+        }
+        print self.class_counts
+        print self.prior
+        print self.feature_names
 
     def classify(self, article):
         article_features = Featurizer(article).extract_features()
-
         #MAP Estimate per feature (number of favorites with feature + 1)/(number of favorites + featureset length)
         p_article = {}
         for target_class in ['0','1']:
             probs = {}
-            prior = self.class_counts[target_class]/float((self.class_counts['1']+self.class_counts['0']))
             for feature in article_features:
                 if feature in self.feature_names:
                     numerator = self.feature_counts[(feature, target_class)]
                     denominator = (self.class_counts[target_class]+self.feature_set_length)            
                     probs[feature] = numerator/float(denominator)
-            tot = 0
+            tot = math.log(self.prior[target_class])
             for p in probs.values():
                 tot += math.log(p)
-            p_article[target_class] = math.log(prior) + tot
-            estimated_class = max(p_article.iteritems(), key=operator.itemgetter(1))[0]
+            
+            p_article[target_class] = tot
+        
+        estimated_class = min(p_article, key=p_article.get)
         return int(estimated_class)
 
 def score(model, training_set):
@@ -204,7 +211,7 @@ if __name__ == "__main__":
     articles_to_score = list(training_set)
     print "Number of articles with raw content (before featurizing):", training_set.count()
 
-    model = NaiveBayes(training_set)
+    model = NaiveBayes(articles_to_score)
     print "We have built a model"
 
     initial_score = score(model, articles_to_score)
