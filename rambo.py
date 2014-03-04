@@ -4,7 +4,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import chi2
 from sklearn.feature_selection import f_classif
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, RandomizedLogisticRegression
 from sklearn.linear_model import RidgeClassifier
 from sklearn.linear_model import SGDClassifier
 from sklearn.linear_model import Perceptron
@@ -12,13 +12,13 @@ from sklearn.neural_network import BernoulliRBM
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neighbors import NearestCentroid
 
-from sklearn.svm import LinearSVC
+from sklearn.svm import SVC, LinearSVC
 from sklearn.metrics import accuracy_score
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn import metrics
 
-clfs = [LogisticRegression, MultinomialNB, LinearSVC, RidgeClassifier, Perceptron,KNeighborsClassifier,NearestCentroid]
+clfs = [LogisticRegression, MultinomialNB, SVC, LinearSVC, RidgeClassifier, Perceptron,KNeighborsClassifier,NearestCentroid]
 clfs_names = map(lambda x: type(x()).__name__ , clfs)
 
 
@@ -28,7 +28,10 @@ def hail_mary(x_train, x_test, y_train, y_test):
     full_x_train, vectorizer = init_vectorizer(x_train)
     full_x_test = vectorizer.transform(x_test)
     num_features = full_x_train.shape[1]
-    score_funs = [metrics.f1_score, metrics.precision_score, metrics.recall_score]
+    score_funs = [metrics.f1_score,
+        metrics.precision_score,
+        metrics.recall_score,
+        metrics.accuracy_score]
     k_percentages = [0.25, 0.5, 0.75, 1]
     scores = np.zeros((len(clfs), len(score_funs), 2,  len(k_percentages)))
     for clf, clf_name in zip(clfs,clfs_names):
