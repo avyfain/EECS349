@@ -6,12 +6,13 @@ class ArticleAnalyzer():
     """Used to add custom functionality to sklearn's CountVectorizer.
     Besides analyzing article content, also analyzes title
     """
-    def __init__(self):
+    def __init__(self, excluded_features=[]):
         self.stop_words = self.get_stop_words()
         self.tokenize = self.build_tokenizer()
         self.preprocess = self.build_preprocessor()
         stemmer = stemmer = SnowballStemmer('english')
         self.stem = lambda tokens: [stemmer.stem(token) for token in tokens]
+        self.excluded_features = excluded_features
 
     def extract_features(self, article):
         features = []
@@ -20,6 +21,7 @@ class ArticleAnalyzer():
                                 self.preprocess(self.decode(content_text)))),
                                 "content_contains_",
                                 self.stop_words)
+        content_features = [f for f in content_features if f not in self.excluded_features]
         features += content_features
 
         try:

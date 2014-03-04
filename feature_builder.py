@@ -6,6 +6,7 @@ from nltk import word_tokenize
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import BernoulliNB, MultinomialNB, GaussianNB
 from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer, CountVectorizer
+from sklearn.feature_selection import SelectKBest, chi2
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from sklearn import metrics
@@ -15,7 +16,7 @@ from extractor import clean_text
 from featurizer import Featurizer
 from naive_bayes import NaiveBayes
 from analyzer import ArticleAnalyzer
-
+from rambo import hail_mary
 def all_features(feature_list):
     all_keys = set()
     length = 0
@@ -95,10 +96,8 @@ def score(model, training_set):
 
     return f_score
 
-def fit_sklearn_model(x_train, y_train, classifier= MultinomialNB):
-    vectorizer = CountVectorizer(stop_words='english', analyzer=ArticleAnalyzer().as_callable())
-    X_train = vectorizer.fit_transform(x_train)
-    model = classifier().fit(X_train, y_train)
+def fit_sklearn_model(x_train, y_train, fitted_vectorizer, classifier= MultinomialNB, ):
+    model = classifier().fit(x_train, y_train)
     return model
 
 def clean_articles_for_model(articles):
@@ -120,6 +119,11 @@ def clean_articles_for_model(articles):
 
     return {"data": docs, "target": y}
 
+def init_vectorizer(x_train):
+    vectorizer = CountVectorizer(stop_words='english', analyzer=ArticleAnalyzer().as_callable())
+    x_train = vectorizer.fit_transform(x_train)
+
+    return x_train, vectorizer
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -132,7 +136,7 @@ if __name__ == "__main__":
     training_set  = Articles.find({'_id': {'$in': ids},
         'extracted_raw_content':{'$exists':True}})
 
-    all_articles = list(training_set)
+    all_articles = list(training_set)[:]
     random.seed(4)
     random.shuffle(all_articles)
     dataset_size = len(all_articles)
@@ -146,23 +150,26 @@ if __name__ == "__main__":
 
     print "Training size: %s, test size: %s" % (len(x_train), len(x_test))
 
-    model = fit_sklearn_model(x_train, y_train, classifier=LogisticRegression)
+    hail_mary(x_train, x_test, y_train, y_test)
+    # x_train, vectorizer = init_vectorizer(x_train)
+    # x_test = vectorizer.transform(x_test)
+    # ch2 = SelectKBest(chi2 , k=40000)
+    # vectorizer = ch2
+    # x_train = vectorizer.fit_transform(x_train, y_train)
+    # x_test = vectorizer.transform(x_test)
 
+    # model = fit_sklearn_model(x_train, y_train, vectorizer, classifier=LogisticRegression)
+    # #print "Number of features: %s" % len(vectorizer.get_feature_names())
+    # y_pred = model.predict(x_train)
+    # print "=="*20, "\nTraining Set Report. Model: MultinomialNB \n", "--"*20
+    # report = metrics.classification_report(y_train, y_pred)
+    # print report
 
-    vectorizer = CountVectorizer(stop_words='english', analyzer=ArticleAnalyzer().as_callable())
-    x_train = vectorizer.fit_transform(x_train)
-    print "Number of features: %s" % len(vectorizer.get_feature_names())
-    y_pred = model.predict(x_train)
-    print "=="*20, "\nTraining Set Report. Model: MultinomialNB \n", "--"*20
-    report = metrics.classification_report(y_train, y_pred)
-    print report
-
-    #vectorizer is already fitted with train data
-    x_test = vectorizer.transform(x_test)
-    y_pred = model.predict(x_test)
-    print "="*20, "\nTest Set Report. Model: MultinomialNB\n", "-"*20
-    report = metrics.classification_report(y_test, y_pred)
-    print report
+    # #vectorizer is already fitted with train data
+    # y_pred = model.predict(x_test)
+    # print "="*20, "\nTest Set Report. Model: MultinomialNB\n", "-"*20
+    # report = metrics.classification_report(y_test, y_pred)
+    # print report
     #model = NaiveBayes(articles_to_score)
     # print "We have built a model"
 
