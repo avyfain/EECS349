@@ -96,7 +96,7 @@ def score(model, training_set):
 
     return f_score
 
-def fit_sklearn_model(x_train, y_train, fitted_vectorizer, classifier= MultinomialNB, ):
+def fit_sklearn_model(x_train, y_train, classifier= MultinomialNB, ):
     model = classifier().fit(x_train, y_train)
     return model
 
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     training_set  = Articles.find({'_id': {'$in': ids},
         'extracted_raw_content':{'$exists':True}})
 
-    all_articles = list(training_set)[:]
+    all_articles = list(training_set)
     random.seed(4)
     random.shuffle(all_articles)
     dataset_size = len(all_articles)

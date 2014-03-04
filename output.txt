@@ -1,0 +1,77 @@
+ining size: 1641, test size: 408
+
+============================================================
+f1_score
+------------------------------------------------------------
+--------------------
+Training
+--------------------
+                      0.25  0.50  0.75  1.00
+  LogisticRegression  1.00  1.00  1.00  1.00
+       MultinomialNB  0.91  0.82  0.68  0.52
+           LinearSVC  1.00  0.99  1.00  1.00
+     RidgeClassifier  1.00  1.00  1.00  1.00
+          Perceptron  0.64  0.26  0.26  0.63
+KNeighborsClassifier  0.05  0.08  0.08  0.05
+     NearestCentroid  0.13  0.13  0.13  0.13
+--------------------
+Test
+--------------------
+                      0.25  0.50  0.75  1.00
+  LogisticRegression  0.05  0.06  0.06  0.06
+       MultinomialNB  0.06  0.00  0.00  0.00
+           LinearSVC  0.08  0.08  0.08  0.12
+     RidgeClassifier  0.12  0.12  0.12  0.16
+          Perceptron  0.00  0.05  0.05  0.00
+KNeighborsClassifier  0.00  0.00  0.00  0.00
+     NearestCentroid  0.10  0.10  0.10  0.10
+============================================================
+precision_score
+------------------------------------------------------------
+--------------------
+Training
+--------------------
+                      0.25  0.50  0.75  1.00
+  LogisticRegression  1.00  1.00  1.00  1.00
+       MultinomialNB  0.91  0.82  0.68  0.52
+           LinearSVC  1.00  0.99  1.00  1.00
+     RidgeClassifier  1.00  1.00  1.00  1.00
+          Perceptron  0.64  0.26  0.26  0.63
+KNeighborsClassifier  0.05  0.08  0.08  0.05
+     NearestCentroid  0.13  0.13  0.13  0.13
+--------------------
+Test
+--------------------
+                      0.25  0.50  0.75  1.00
+  LogisticRegression  0.05  0.06  0.06  0.06
+       MultinomialNB  0.06  0.00  0.00  0.00
+           LinearSVC  0.08  0.08  0.08  0.12
+     RidgeClassifier  0.12  0.12  0.12  0.16
+          Perceptron  0.00  0.05  0.05  0.00
+KNeighborsClassifier  0.00  0.00  0.00  0.00
+     NearestCentroid  0.10  0.10  0.10  0.10
+============================================================
+recall_score
+------------------------------------------------------------
+--------------------
+Training
+--------------------
+                      0.25  0.50  0.75  1.00
+  LogisticRegression  1.00  1.00  1.00  1.00
+       MultinomialNB  0.91  0.82  0.68  0.52
+           LinearSVC  1.00  0.99  1.00  1.00
+     RidgeClassifier  1.00  1.00  1.00  1.00
+          Perceptron  0.64  0.26  0.26  0.63
+KNeighborsClassifier  0.05  0.08  0.08  0.05
+     NearestCentroid  0.13  0.13  0.13  0.13
+--------------------
+Test
+--------------------
+                      0.25  0.50  0.75  1.00
+  LogisticRegression  0.05  0.06  0.06  0.06
+       MultinomialNB  0.06  0.00  0.00  0.00
+           LinearSVC  0.08  0.08  0.08  0.12
+     RidgeClassifier  0.12  0.12  0.12  0.16
+          Perceptron  0.00  0.05  0.05  0.00
+KNeighborsClassifier  0.00  0.00  0.00  0.00
+     NearestCentroid  0.10  0.10  0.10  0.10
