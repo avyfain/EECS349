@@ -7,63 +7,13 @@ from scipy.sparse import lil_matrix
 import math
 import operator
 import logging
-
-class Featurizer(object):
-    def __init__(self, story):
-        self.story = story
-        self.features = {}
-
-    def extract_features(self):
-        self.extract_title_features()
-        self.extract_text_features()
-
-        return self.features
-
-    def extract_title_features(self):
-        # * title_contains_{word}
-        # * title_contains_{bigram}
-        # * domain_{domain of url}
-        # * author_{author}
-        # * title_has_dollar_amount
-        # * title_has_number_of_years
-        # * word count
-
-        author = self.story['extracted_raw_content']['author']
-        if author:
-            author = author.lower()
-            feature_key = "author_" + author.encode('ascii', errors='ignore')
-            self.features.setdefault(feature_key, 1)
-
-        word_count = self.story['extracted_raw_content']['word_count']
-        if word_count:
-            word_count = self.story['word_count']
-            self.features.setdefault("word_count", word_count)
-
-        domain = self.story['extracted_raw_content']['domain']
-
-        if domain:
-            domain_key = "domain_name_" + domain.encode('ascii', errors='ignore')
-            self.features.setdefault(domain_key, 1)
-
-        title = clean_text(self.story['extracted_raw_content']['title'])
-        words = word_tokenize(title)
-        word_freqs = Counter(words)
-        for k,v in word_freqs.iteritems():
-            feature_key = "title_contains_" + k
-            self.features.setdefault(feature_key, v)
-
-        has_dollar_sign_or_word = '$' in title or 'dollar' in title
-        self.features.setdefault('has_dollar_sign_or_word', int(has_dollar_sign_or_word))
-
-
-    def extract_text_features(self):
-        text = clean_text(self.story['extracted_raw_content']['content'])
-        words = word_tokenize(text)
-        word_freqs = Counter(words)
-        for k,v in word_freqs.iteritems():
-            feature_key = "content_contains_" + k
-            self.features.setdefault(feature_key, v)
-
+from sklearn.naive_bayes import BernoulliNB, MultinomialNB, GaussianNB
+from sklearn import metrics
+from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer, CountVectorizer
+from pymongo import MongoClient
+from bson.objectid import ObjectId
+from featurizer import Featurizer
+from naive_bayes import NaiveBayes
 def all_features(feature_list):
     all_keys = set()
     length = 0
@@ -110,92 +60,6 @@ def scikit_models(articles):
     #gnb = GaussianNB()
     #y_pred = gnb.fit(matrix.toarray(), targets)
 
-class NaiveBayes():
-    def __init__(self, articles):
-        self.articles = articles
-        self.nb()
-
-    def nb(self, offline=True):
-        self.feature_names = set([])
-        #frequency table, initialize all to 1
-        #keys will be tuples (feature_key, target_class), values will be frequency+1
-        self.feature_counts = collections.defaultdict(lambda: 1)
-        self.class_counts = collections.defaultdict(lambda: 1)
-        logging.info("Article count %s" % len(self.articles))
-        for article in self.articles:
-            try:
-                features = Featurizer(article).extract_features()
-                for f in features:
-                    self.feature_names.add(f)
-                target_class = article["favorite"]
-                self.class_counts[target_class] += 1
-                # print target_class, self.class_counts
-            except Exception as e:
-                #Some error extracting article, so skip it.
-                print "Exception:",e
-                continue
-
-            for feature, count in features.iteritems():
-                self.feature_counts[(feature, target_class)] += 1
-        self.feature_set_length = len(self.feature_names)
-
-        if offline:
-            self.build_probabilities()
-
-    def build_probabilities(self):
-        self.probs = {}
-        for target_class in ['0','1']:
-
-            for feature in self.feature_names:
-                numerator = self.feature_counts[(feature, target_class)]
-                denominator = (self.class_counts[target_class] + self.feature_set_length)
-                self.probs[(target_class, feature)] = numerator / float(denominator)
-
-    def classify_offline(self,article):
-        try:
-            article_features = Featurizer(article).extract_features()
-        except:
-            return None
-
-        p_article = {}
-        for target_class in self.class_counts.keys():
-            multiplication_total = 0
-            for feature in article_features:
-                if feature in self.feature_names:
-                    multiplication_total += math.log(self.probs[(target_class, feature)])
-
-            all_class_counts = float(sum(self.class_counts.values()))
-            prior = self.class_counts[target_class] / all_class_counts
-            p_article[target_class] = math.log(prior) + multiplication_total
-
-        estimated_class = min(p_article.iteritems(), key=operator.itemgetter(1))[0]
-        return int(estimated_class)
-
-
-
-
-    def classify(self, article):
-        try:
-            article_features = Featurizer(article).extract_features()
-        except:
-            return None
-        #MAP Estimate per feature (number of favorites with feature + 1)/(number of favorites + featureset length)
-        p_article = {}
-        for target_class in ['0','1']:
-            probs = {}
-            prior = self.class_counts[target_class]/float((self.class_counts['1']+self.class_counts['0']))
-            for feature in article_features:
-                if feature in self.feature_names:
-                    numerator = self.feature_counts[(feature, target_class)]
-                    denominator = (self.class_counts[target_class]+self.feature_set_length)
-                    probs[feature] = numerator/float(denominator)
-            tot = 0
-            for p in probs.values():
-                tot += math.log(p)
-            p_article[target_class] = math.log(prior) + tot
-            estimated_class = min(p_article.iteritems(), key=operator.itemgetter(1))[0]
-        return int(estimated_class)
-
 def score(model, training_set):
     true_pos = 1
     true_neg = 1
@@ -229,14 +93,52 @@ def score(model, training_set):
 
     return f_score
 
+def sklearn_model(articles):
+    docs = []
+    y = []
+    from sklearn.datasets import fetch_20newsgroups
+    categories = [
+        'alt.atheism',
+        'talk.religion.misc',
+        'comp.graphics',
+        'sci.space',
+    ]
+    data_train = fetch_20newsgroups(subset='train', categories=categories,
+                                shuffle=True, random_state=42)
+    for article in articles:
+        try:
+            text = clean_text(article['extracted_raw_content']['content'])
+            docs.append(text)
+            y.append(int(article['favorite']))
+        except Exception as e:
+            logging.info("Exception %s" % e)
+            continue
+
+    vectorizer = TfidfVectorizer(stop_words='english')
+    X_train = vectorizer.fit_transform(docs)
+
+    model = MultinomialNB().fit(X_train, y)
+    pred = model.predict(X_train)
+    report = metrics.classification_report(y, pred)
+    score = metrics.f1_score(y, pred)
+    print report
+    print "F-Score: %s" % score
+
 if __name__ == "__main__":
-    from pymongo import MongoClient
+    logging.basicConfig(level=logging.INFO)
     client = MongoClient('mongodb://localhost:27017/')
     db = client.phoenix
     Articles = db.articles
-    training_set = Articles.find({'extracted_raw_content':{'$exists':True}})#.limit(1000)
+    #training_set = Articles.find({'extracted_raw_content':{'$exists':True}})#.limit(100)
+
+    ids = db.users.find_one({'_id':'avyfain'})['articles_ids']
+    training_set  = Articles.find({'_id': {'$in': ids},
+        'extracted_raw_content':{'$exists':True}})
+
     articles_to_score = list(training_set)
     print "Number of articles with raw content (before featurizing):", training_set.count()
+
+    sklearn_model(articles_to_score)
 
     model = NaiveBayes(articles_to_score)
     print "We have built a model"
