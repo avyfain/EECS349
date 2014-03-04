@@ -1,19 +1,21 @@
+import math, operator, logging, collections, random
 from collections import Counter
-import collections
-from extractor import clean_text
-from nltk import word_tokenize
+
 import numpy as np
-from scipy.sparse import lil_matrix
-import math
-import operator
-import logging
+from nltk import word_tokenize
+from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import BernoulliNB, MultinomialNB, GaussianNB
-from sklearn import metrics
 from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer, CountVectorizer
 from pymongo import MongoClient
 from bson.objectid import ObjectId
+from sklearn import metrics
+from scipy.sparse import lil_matrix
+
+from extractor import clean_text
 from featurizer import Featurizer
 from naive_bayes import NaiveBayes
+from analyzer import ArticleAnalyzer
+
 def all_features(feature_list):
     all_keys = set()
     length = 0
@@ -68,7 +70,7 @@ def score(model, training_set):
     predicted_classes = []
 
     for article in training_set:
-        predicted_class = model.classify_offline(article)
+        predicted_class = model.predict(article)
         if predicted_class is not None:
             predicted_classes.append(predicted_class)
             real_class = int(article['favorite'])
@@ -93,36 +95,31 @@ def score(model, training_set):
 
     return f_score
 
-def sklearn_model(articles):
+def fit_sklearn_model(x_train, y_train, classifier= MultinomialNB):
+    vectorizer = CountVectorizer(stop_words='english', analyzer=ArticleAnalyzer().as_callable())
+    X_train = vectorizer.fit_transform(x_train)
+    model = classifier().fit(X_train, y_train)
+    return model
+
+def clean_articles_for_model(articles):
+    """Cleans articles so the output of this can be used by sklearn
+    returns documents, targets
+    """
+
     docs = []
     y = []
-    from sklearn.datasets import fetch_20newsgroups
-    categories = [
-        'alt.atheism',
-        'talk.religion.misc',
-        'comp.graphics',
-        'sci.space',
-    ]
-    data_train = fetch_20newsgroups(subset='train', categories=categories,
-                                shuffle=True, random_state=42)
+
     for article in articles:
         try:
             text = clean_text(article['extracted_raw_content']['content'])
-            docs.append(text)
+            docs.append(article)
             y.append(int(article['favorite']))
         except Exception as e:
             logging.info("Exception %s" % e)
             continue
 
-    vectorizer = TfidfVectorizer(stop_words='english')
-    X_train = vectorizer.fit_transform(docs)
+    return {"data": docs, "target": y}
 
-    model = MultinomialNB().fit(X_train, y)
-    pred = model.predict(X_train)
-    report = metrics.classification_report(y, pred)
-    score = metrics.f1_score(y, pred)
-    print report
-    print "F-Score: %s" % score
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -135,13 +132,39 @@ if __name__ == "__main__":
     training_set  = Articles.find({'_id': {'$in': ids},
         'extracted_raw_content':{'$exists':True}})
 
-    articles_to_score = list(training_set)
-    print "Number of articles with raw content (before featurizing):", training_set.count()
+    all_articles = list(training_set)
+    random.seed(4)
+    random.shuffle(all_articles)
+    dataset_size = len(all_articles)
+    partition_index = int(dataset_size * 0.8)
+    data = clean_articles_for_model(all_articles)
+    x_train = data['data'][:partition_index]
+    x_test =  data['data'][partition_index:]
 
-    sklearn_model(articles_to_score)
+    y_train = data['target'][:partition_index]
+    y_test = data['target'][partition_index:]
 
-    model = NaiveBayes(articles_to_score)
-    print "We have built a model"
+    print "Training size: %s, test size: %s" % (len(x_train), len(x_test))
 
-    initial_score = score(model, articles_to_score)
-    print "Our model has an F-score of", initial_score
+    model = fit_sklearn_model(x_train, y_train, classifier=LogisticRegression)
+
+
+    vectorizer = CountVectorizer(stop_words='english', analyzer=ArticleAnalyzer().as_callable())
+    x_train = vectorizer.fit_transform(x_train)
+    print "Number of features: %s" % len(vectorizer.get_feature_names())
+    y_pred = model.predict(x_train)
+    print "=="*20, "\nTraining Set Report. Model: MultinomialNB \n", "--"*20
+    report = metrics.classification_report(y_train, y_pred)
+    print report
+
+    #vectorizer is already fitted with train data
+    x_test = vectorizer.transform(x_test)
+    y_pred = model.predict(x_test)
+    print "="*20, "\nTest Set Report. Model: MultinomialNB\n", "-"*20
+    report = metrics.classification_report(y_test, y_pred)
+    print report
+    #model = NaiveBayes(articles_to_score)
+    # print "We have built a model"
+
+    # initial_score = score(model, articles_to_score)
+    # print "Our model has an F-score of", initial_score

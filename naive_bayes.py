@@ -4,7 +4,7 @@ import logging
 class NaiveBayes():
     def __init__(self, articles):
         self.articles = articles
-        self.nb()
+        self.fit()
 
     def fit(self, offline=True):
         self.feature_names = set([])
