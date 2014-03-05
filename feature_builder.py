@@ -134,7 +134,9 @@ if __name__ == "__main__":
 
     ids = db.users.find_one({'_id':'avyfain'})['articles_ids']
     training_set  = Articles.find({'_id': {'$in': ids},
-        'extracted_raw_content':{'$exists':True}})
+        'extracted_raw_content':{'$exists':True},
+        'status':"1"
+        })
 
     all_articles = list(training_set)
     random.seed(4)
@@ -149,7 +151,7 @@ if __name__ == "__main__":
     y_test = data['target'][partition_index:]
 
     print "Training size: %s, test size: %s" % (len(x_train), len(x_test))
-
+    print "Favorites in training: %s, in test: %s" % (sum([int(y) for y in y_train]), sum([int(y) for y in y_test]))
     hail_mary(x_train, x_test, y_train, y_test)
     # x_train, vectorizer = init_vectorizer(x_train)
     # x_test = vectorizer.transform(x_test)

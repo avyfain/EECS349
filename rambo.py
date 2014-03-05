@@ -18,7 +18,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn import metrics
 
-clfs = [LogisticRegression, MultinomialNB, SVC, LinearSVC, RidgeClassifier, Perceptron,KNeighborsClassifier,NearestCentroid]
+clfs = [LogisticRegression, MultinomialNB, LinearSVC, RidgeClassifier, Perceptron,KNeighborsClassifier, NearestCentroid]
 clfs_names = map(lambda x: type(x()).__name__ , clfs)
 
 
@@ -26,13 +26,14 @@ def hail_mary(x_train, x_test, y_train, y_test):
     from feature_builder import init_vectorizer, fit_sklearn_model
 
     full_x_train, vectorizer = init_vectorizer(x_train)
+    print "Initial Featureset length: %s" % len(vectorizer.get_feature_names())
     full_x_test = vectorizer.transform(x_test)
     num_features = full_x_train.shape[1]
     score_funs = [metrics.f1_score,
         metrics.precision_score,
         metrics.recall_score,
         metrics.accuracy_score]
-    k_percentages = [0.25, 0.5, 0.75, 1]
+    k_percentages = np.arange(0.05,1.05,0.05)
     scores = np.zeros((len(clfs), len(score_funs), 2,  len(k_percentages)))
     for clf, clf_name in zip(clfs,clfs_names):
         for percentage_i, k_percentage in enumerate(k_percentages):
@@ -48,13 +49,13 @@ def hail_mary(x_train, x_test, y_train, y_test):
 
                 y_pred = model.predict(transformed_x)
                 for ii, score_fun in enumerate(score_funs):
-                    score = metrics.f1_score(y, y_pred)
+                    score = score_fun(y, y_pred)
                     scores[clfs_names.index(clf_name),ii,i,percentage_i] = score
 
     for fun_i, fun in enumerate(score_funs):
         print "===" * 20, "\n%s\n"%fun.__name__, "---"*20
         for dset_i, (dset_name,x,y) in enumerate(dsets):
             print "-" * 20, "\n%s\n"%dset_name, "-"*20
-            print "%20s"%""," ".join(["%5.2f" % p for p in k_percentages])
+            print "%28s"%""," ".join(["%5.2f" % p for p in k_percentages])
             for i, clf_name in enumerate(clfs_names):
-                print("%20s"%clf_name)," ".join(["%5.2f" % scores[i][fun_i][dset_i][k] for k in range(len(k_percentages))])
+                print("%28s"%clf_name)," ".join(["%5.2f" % scores[i][fun_i][dset_i][k] for k in range(len(k_percentages))])
