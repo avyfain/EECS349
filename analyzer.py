@@ -24,6 +24,7 @@ class ArticleAnalyzer():
         content_features = [f for f in content_features if f not in self.excluded_features]
         features += content_features
 
+        #add author to features
         try:
             author = article['extracted_raw_content']['author']
             if author:
@@ -33,6 +34,41 @@ class ArticleAnalyzer():
                                 "author_",
                                 self.stop_words)
                 features += author_features
+        except Exception as e:
+            print e
+
+        #add title features
+        try:
+            title = article['extracted_raw_content']['title']
+            if title:
+                title = title.lower()
+                title_features = self._word_ngrams(self.tokenize(self.preprocess
+                            (self.decode(title))), 'title_contains_', self.stop_words)
+                features += title_features
+        except Exception as e:
+            print e
+
+        #add domain feature
+        try:
+            domain = article['extracted_raw_content']['domain']
+            if domain:
+                domain_feature = "domain_is_" + domain
+            features += domain_feature
+        except Exception as e:
+            print e
+
+        #add word lenght as a feature
+        try:
+            word_count = int(article['extracted_raw_content']['word_count'])
+            if word_count:
+                if word_count < 500:
+                    word_count_feature = "article_is_short"
+                elif word_count < 1200:
+                    word_count_feature = "article_is_medium"
+                else:
+                    word_count_feature = "article_is_long"
+
+                features += word_count_feature
         except Exception as e:
             print e
 
