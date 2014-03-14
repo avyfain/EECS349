@@ -20,6 +20,7 @@ from sklearn.svm import SVC, LinearSVC
 from sklearn.metrics import accuracy_score
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
+from sklearn import cross_validation
 from sklearn import metrics
 
 from feature_builder import init_vectorizer, fit_sklearn_model, clean_articles_for_model
@@ -48,24 +49,23 @@ k_percentages = np.arange(0.05,1.05,0.05)
 
 random.seed(4)
 
-def random_subsampling_cv(all_articles):
+def cross_validate(all_articles):
     """Repeated random sub-sampling validation
     """
     n = 10 #Number of repetitions
 
     scores = np.zeros((len(clfs), len(score_funs), 2,  len(k_percentages)))
-    for i in range(n):
 
-        random.shuffle(all_articles)
-        dataset_size = len(all_articles)
-        partition_index = int(dataset_size * 0.8)
+    dset  = clean_articles_for_model(all_articles)
+    data = np.array(dset['data'])
+    targets = np.array(dset['target'])
+    kf = cross_validation.KFold(len(data), n_folds=n)
+    for i, (train_indeces, test_indeces) in enumerate(kf):
 
-        data = clean_articles_for_model(all_articles)
-
-        x_train = data['data'][:partition_index]
-        x_test =  data['data'][partition_index:]
-        y_train = data['target'][:partition_index]
-        y_test = data['target'][partition_index:]
+        x_train = data[train_indeces]
+        x_test =  data[test_indeces]
+        y_train = targets[train_indeces]
+        y_test = targets[test_indeces]
 
         print "Starting iter %s" % i
         #add (elementwise) results from each CV iteration
@@ -128,4 +128,4 @@ if __name__ == '__main__':
     all_articles = list(training_set)
     print "Number of articles: %s" % len(all_articles)
 
-    random_subsampling_cv(all_articles)
+    cross_validate(all_articles)
