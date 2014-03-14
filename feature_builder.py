@@ -16,7 +16,6 @@ from extractor import clean_text
 from featurizer import Featurizer
 from naive_bayes import NaiveBayes
 from analyzer import ArticleAnalyzer
-from rambo import hail_mary
 def all_features(feature_list):
     all_keys = set()
     length = 0
@@ -138,21 +137,9 @@ if __name__ == "__main__":
         'status':"1"
         })
 
-    all_articles = list(training_set)
-    random.seed(4)
-    random.shuffle(all_articles)
-    dataset_size = len(all_articles)
-    partition_index = int(dataset_size * 0.8)
-    data = clean_articles_for_model(all_articles)
-    x_train = data['data'][:partition_index]
-    x_test =  data['data'][partition_index:]
+    all_articles = list(training_set)[:100]
 
-    y_train = data['target'][:partition_index]
-    y_test = data['target'][partition_index:]
-
-    print "Training size: %s, test size: %s" % (len(x_train), len(x_test))
-    print "Favorites in training: %s, in test: %s" % (sum([int(y) for y in y_train]), sum([int(y) for y in y_test]))
-    hail_mary(x_train, x_test, y_train, y_test)
+    hail_mary(all_articles)
     # x_train, vectorizer = init_vectorizer(x_train)
     # x_test = vectorizer.transform(x_test)
     # ch2 = SelectKBest(chi2 , k=40000)

@@ -24,6 +24,7 @@ class ArticleAnalyzer():
         content_features = [f for f in content_features if f not in self.excluded_features]
         features += content_features
 
+        '''
         #add author to features
         try:
             author = article['extracted_raw_content']['author']
@@ -71,7 +72,7 @@ class ArticleAnalyzer():
                 features += word_count_feature
         except Exception as e:
             print e
-
+        '''
         return features
 
 

@@ -1,3 +1,7 @@
+import random, logging, warnings
+
+from pymongo import MongoClient
+
 import numpy as np
 from sklearn.cross_validation import KFold
 from sklearn.ensemble import RandomForestClassifier
@@ -18,22 +22,74 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn import metrics
 
-clfs = [LogisticRegression, MultinomialNB, LinearSVC, RidgeClassifier, Perceptron,KNeighborsClassifier, NearestCentroid]
+from feature_builder import init_vectorizer, fit_sklearn_model, clean_articles_for_model
+
+
+clfs = [
+    LogisticRegression,
+    MultinomialNB,
+    LinearSVC,
+    RidgeClassifier,
+    Perceptron,
+    NearestCentroid,
+    KNeighborsClassifier
+]
+
 clfs_names = map(lambda x: type(x()).__name__ , clfs)
 
+score_funs = [
+    metrics.f1_score,
+    metrics.precision_score,
+    metrics.recall_score,
+    metrics.accuracy_score
+]
 
-def hail_mary(x_train, x_test, y_train, y_test):
-    from feature_builder import init_vectorizer, fit_sklearn_model
+k_percentages = np.arange(0.05,1.05,0.05)
 
+random.seed(4)
+
+def random_subsampling_cv(all_articles):
+    """Repeated random sub-sampling validation
+    """
+    n = 10 #Number of repetitions
+
+    scores = np.zeros((len(clfs), len(score_funs), 2,  len(k_percentages)))
+    for i in range(n):
+
+        random.shuffle(all_articles)
+        dataset_size = len(all_articles)
+        partition_index = int(dataset_size * 0.8)
+
+        data = clean_articles_for_model(all_articles)
+
+        x_train = data['data'][:partition_index]
+        x_test =  data['data'][partition_index:]
+        y_train = data['target'][:partition_index]
+        y_test = data['target'][partition_index:]
+
+        print "Starting iter %s" % i
+        #add (elementwise) results from each CV iteration
+        scores = np.add(scores, cv_iteration(x_train,x_test,y_train,y_test))
+
+    #take average of each-score
+    scores = scores / float(n)
+    dsets_names = ["training", "test"]
+    for fun_i, fun in enumerate(score_funs):
+        print "===" * 20, "\n%s\n"%fun.__name__, "---"*20
+        for dset_i, dset_name in enumerate(dsets_names):
+            print "-" * 20, "\n%s\n"%dset_name, "-"*20
+            print "%28s"%""," ".join(["%5.2f" % p for p in k_percentages])
+            for i, clf_name in enumerate(clfs_names):
+                print("%28s"%clf_name)," ".join(["%5.2f" % scores[i][fun_i][dset_i][k] for k in range(len(k_percentages))])
+
+
+def cv_iteration(x_train, x_test, y_train, y_test):
+    print "Train set: %s with %s favorites. Test set: %s with %s favorites" % \
+    (len(x_train), sum([int(t) for t in y_train]), len(x_test), sum([int(t) for t in y_test]))
     full_x_train, vectorizer = init_vectorizer(x_train)
     print "Initial Featureset length: %s" % len(vectorizer.get_feature_names())
     full_x_test = vectorizer.transform(x_test)
     num_features = full_x_train.shape[1]
-    score_funs = [metrics.f1_score,
-        metrics.precision_score,
-        metrics.recall_score,
-        metrics.accuracy_score]
-    k_percentages = np.arange(0.05,1.05,0.05)
     scores = np.zeros((len(clfs), len(score_funs), 2,  len(k_percentages)))
     for clf, clf_name in zip(clfs,clfs_names):
         for percentage_i, k_percentage in enumerate(k_percentages):
@@ -49,13 +105,27 @@ def hail_mary(x_train, x_test, y_train, y_test):
 
                 y_pred = model.predict(transformed_x)
                 for ii, score_fun in enumerate(score_funs):
-                    score = score_fun(y, y_pred)
-                    scores[clfs_names.index(clf_name),ii,i,percentage_i] = score
+                    with warnings.catch_warnings(record=True) as w:
+                        score = score_fun(y, y_pred)
+                        scores[clfs_names.index(clf_name),ii,i,percentage_i] = score
 
-    for fun_i, fun in enumerate(score_funs):
-        print "===" * 20, "\n%s\n"%fun.__name__, "---"*20
-        for dset_i, (dset_name,x,y) in enumerate(dsets):
-            print "-" * 20, "\n%s\n"%dset_name, "-"*20
-            print "%28s"%""," ".join(["%5.2f" % p for p in k_percentages])
-            for i, clf_name in enumerate(clfs_names):
-                print("%28s"%clf_name)," ".join(["%5.2f" % scores[i][fun_i][dset_i][k] for k in range(len(k_percentages))])
+    return scores
+
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    client = MongoClient('mongodb://localhost:27017/')
+    db = client.phoenix
+    Articles = db.articles
+
+    ids = db.users.find_one({'_id':'avyfain'})['articles_ids']
+    training_set  = Articles.find({'_id': {'$in': ids},
+        'extracted_raw_content':{'$exists':True},
+        'status':"1"
+        })
+
+    all_articles = list(training_set)
+    print "Number of articles: %s" % len(all_articles)
+
+    random_subsampling_cv(all_articles)
