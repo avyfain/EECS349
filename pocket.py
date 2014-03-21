@@ -6,11 +6,11 @@ from pymongo import MongoClient
 """
 
 
-CONSUMER_KEY = "23417-b55bf5445152c892b4dbbe22"
+CONSUMER_KEY = "POCKET_KEY"
 
 TOKENS = {
-    #"leon":"204ab5b2-4e64-015c-453e-65268e",
-    "avy": "d9b284c1-d6d0-850b-5ee2-94ebb0"
+    #"leon":"token",
+    "avy": "token"
 }
 
 def get_request_token():
