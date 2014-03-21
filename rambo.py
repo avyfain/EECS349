@@ -45,7 +45,7 @@ score_funs = [
     metrics.accuracy_score
 ]
 
-k_percentages = np.arange(0.05,1.05,0.05)
+k_percentages = np.arange(0.05,.35,0.05)
 
 random.seed(4)
 
@@ -88,6 +88,7 @@ def cv_iteration(x_train, x_test, y_train, y_test):
     (len(x_train), sum([int(t) for t in y_train]), len(x_test), sum([int(t) for t in y_test]))
     full_x_train, vectorizer = init_vectorizer(x_train)
     print "Initial Featureset length: %s" % len(vectorizer.get_feature_names())
+    feature_names = vectorizer.get_feature_names()
     full_x_test = vectorizer.transform(x_test)
     num_features = full_x_train.shape[1]
     scores = np.zeros((len(clfs), len(score_funs), 2,  len(k_percentages)))
@@ -109,6 +110,12 @@ def cv_iteration(x_train, x_test, y_train, y_test):
                         score = score_fun(y, y_pred)
                         scores[clfs_names.index(clf_name),ii,i,percentage_i] = score
 
+
+    #print top ranked features
+    top_ranked_features = sorted(enumerate(ch2.scores_),key=lambda x:x[1], reverse=True)[:1000]
+    top_ranked_features_indices = map(list,zip(*top_ranked_features))[0]
+    #print np.array(feature_names)[top_ranked_features_indices]
+
     return scores
 
 
@@ -125,7 +132,7 @@ if __name__ == '__main__':
         'status':"1"
         })
 
-    all_articles = list(training_set)
+    all_articles = list(training_set)[:]
     print "Number of articles: %s" % len(all_articles)
 
     cross_validate(all_articles)

@@ -30,11 +30,8 @@ class ArticleAnalyzer():
             author = article['extracted_raw_content']['author']
             if author:
                 author = author.lower()
-                author_features = self._word_ngrams(self.tokenize(
-                                self.preprocess(self.decode(author))),
-                                "author_",
-                                self.stop_words)
-                features += author_features
+                author_feature = "author_" + self.decode(author)
+                features += author_feature
         except Exception as e:
             print e
 
